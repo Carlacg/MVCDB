@@ -1,15 +1,15 @@
 package DAO;
 
+import com.mysql.jdbc.jdbc2.optional.MysqlDataSource;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.List;
-import monitor.ConexionBD;
+import javax.swing.JOptionPane;
 import monitor.Controlador_Pool;
+import monitor.DatosBD;
 
 public abstract class DAOBD<T> {
 
@@ -19,6 +19,12 @@ public abstract class DAOBD<T> {
     private String password;
     private String nameDB;
     private Connection connection = null;
+    private Controlador_Pool pool = new Controlador_Pool();
+
+
+    public DAOBD() {
+        pool.iniciarPool();
+    }
 
     private void initData(String host, String port, String user, String password, String nameBD) {
         this.setHost(host);
@@ -27,7 +33,7 @@ public abstract class DAOBD<T> {
         this.setPassword(password);
         this.setNameDB(nameBD);
     }
-
+    
     /**
      * Crea una nueva conexión con la base de datos. Los datos los toma del
      * archivo de configuración, éstos deberán ser correctos, ya que si hay
@@ -37,22 +43,32 @@ public abstract class DAOBD<T> {
     public void establishConnection() {
 
         if (this.connection == null) {
-            Controlador_Pool pool = new Controlador_Pool();
-            pool.iniciarPool();
-            ConexionBD unaConexion = pool.pedirConexion();
-            String puerto = String.valueOf(unaConexion.getPORT());
+            
+            DatosBD unaConexion = pool.pedirConexion();
+            System.out.println("Información que acaba de setear: "+unaConexion);
+            String puerto = String.valueOf(unaConexion.getPuerto());
+            System.out.println("la bandera es: "+bandera);
+            //System.out.println("Contraseña: "+unaConexion.getPassword());
             //Falta que se arregle lo de la contraseña.
-            initData(unaConexion.getHOST(), puerto, 
+            initData(unaConexion.getIp(), puerto,
                     unaConexion.getUsuario(), unaConexion.getPassword(),
                     unaConexion.getNombreBD());
         }
 
         try {
             //Aquí establece la conexión:
-            this.setConnection(DriverManager.getConnection("jdbc:mysql://" + this.getHost()
+            MysqlDataSource source = new MysqlDataSource();
+            
+            String url = "jdbc:mysql://" + this.getHost()
                     + ":" + this.getPort() + "/"
-                    + this.getNameDB(), this.getUser(), this.getPassword()));
-
+                    + this.getNameDB();
+            
+            source.setURL(url);
+            source.setUser(this.user);
+            source.setPassword(this.password);
+            
+            this.setConnection(source.getConnection());
+            //this.setConnection(DriverManager.getConnection(url, this.getUser(), this.getPassword()));
         } catch (SQLException ex) {// handle the error          
             System.out.println("SQLException: " + ex.getMessage());
             ex.printStackTrace();
@@ -68,52 +84,69 @@ public abstract class DAOBD<T> {
      */
     public Connection getConnection() throws SQLException {
 
+        //System.out.println("entre");
+        //System.out.println("coneccion" + connection);
         return connection;
     }
-
+boolean bandera = false;
     public void closeConnection(Connection connection) {
         if (connection != null) {
             try {
-                if (!connection.isClosed()) { // Si no esta cerrada, se cierra
+                if (!connection.isClosed()) { // Si no esta cerrada, se cierra;
                     connection.close();
+                    connection = null;
                 }
             } catch (SQLException ex) {
                 System.out.println(DAOBD.class.getName() + " " + ex.getMessage());
             }
         }
     }
-    
+
     /**
      * Agrega un elemento a la base de datos, ya sea candidato o usuario,
-     * CUIDADO que es un generico y tienen que implementar el 
-     * metodo toString() para que devuelva los valores en formato de MYSQL
+     * CUIDADO que es un generico y tienen que implementar el metodo toString()
+     * para que devuelva los valores en formato de MYSQL
+     *
      * @param elemento
-     * @throws SQLException 
+     * @throws SQLException
      */
-
+    
+    
     public void addElement(T elemento) throws SQLException {
         try {
             this.establishConnection();
 
             Statement statement = this.getConnection().createStatement();
-            //Sentencia en SQL para agregar elementos a la tabla           
-            statement.executeUpdate("INSERT INTO " + (elemento.getClass().getSimpleName()).toLowerCase()
-                    + " VALUES (" + elemento.toString() + ")");
-            statement.close();
-            this.closeConnection(getConnection());
+            //Sentencia en SQL para agregar elementos a la tabla   
+            String query = "INSERT INTO "
+                    + (elemento.getClass().getSimpleName()).toLowerCase()
+                    + " VALUES (" + elemento.toString() + ")";
+            System.out.println(query);
+            //System.exit(0);
 
+            statement.executeUpdate(query);
+            /*
+             JOptionPane.showMessageDialog(null, "Se ha registrado Exitosamente",
+             "Información",
+             JOptionPane.INFORMATION_MESSAGE);
+             */
+            statement.close();
+            statement = null;
+            this.closeConnection(getConnection());
         } catch (SQLException e) {
             System.out.println(e.getMessage());
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "No se registró el elemento");
         }
 
     }
-    
+
     /**
      * Elimina un elemento de la base de Datos
+     *
      * @param elemento
-     * @throws SQLException 
+     * @throws SQLException
      */
-
     public void deleteElement(T elemento) throws SQLException {
         String claveElemento = obtenerCondicionElemento(elemento);
         try {
@@ -121,18 +154,23 @@ public abstract class DAOBD<T> {
             Statement statement = this.getConnection().createStatement();
             statement.execute("DELETE FROM " + elemento.getClass().getSimpleName().toLowerCase()
                     + " WHERE " + claveElemento);
+            statement.close();
+            statement = null;
+            this.closeConnection(getConnection());
+            
         } catch (SQLException ex) {
-            System.out.println("Error en borrar"+ex);
+            System.out.println("Error en borrar" + ex);
         }
     }
 
     /**
      * Obtiene todos los elementos de una tabla, ya sea usuario o candidato
+     *
      * @param nameTable
-     * @return 
+     * @return
      */
-    public List<T> getAllFromTable(String nameTable) {
-        List elementos = new ArrayList();
+    public ArrayList<T> getAllFromTable(String nameTable) {
+        ArrayList<T> elementos = new ArrayList<>();
         try {
 
             this.establishConnection();
@@ -142,23 +180,25 @@ public abstract class DAOBD<T> {
                     + nameTable);
             ResultSet resultadoDeConsulta = consulta.executeQuery();
             while (resultadoDeConsulta.next()) {
-                elementos.add(obtenerElementoDeTabla(resultadoDeConsulta));
+                elementos.add((T) obtenerElementoDeTabla(resultadoDeConsulta));
             }
             resultadoDeConsulta.close();
             consulta.close();
+            consulta = null;
             this.closeConnection(getConnection());
         } catch (Exception e) {
 
+            JOptionPane.showMessageDialog(null,
+                    "No se pudo consultar el elemento\n");
             e.printStackTrace();
         }
         return elementos;
     }
 
-
     /**
-     * Este método devolverá la condición de la tabla a la que
-     * se tendrá que acceder para borrar un elemento.
-     * 
+     * Este método devolverá la condición de la tabla a la que se tendrá que
+     * acceder para borrar un elemento.
+     *
      * @param elemento será un objeto de cualquier tipo.
      * @return la condición de la tabla en donde se borrará.
      */
@@ -168,7 +208,7 @@ public abstract class DAOBD<T> {
 
     public abstract boolean updateElement(T elemento, String condicion) throws SQLException;
 
-    public abstract T findElement(String nombreTabla,String condicion) throws SQLException;
+    public abstract T findElement(String nombreTabla, String condicion) throws SQLException;
 
     /**
      * @return the host
@@ -246,5 +286,8 @@ public abstract class DAOBD<T> {
     public void setConnection(Connection connection) {
         this.connection = connection;
     }
+ 
+    
+    
 
 }
