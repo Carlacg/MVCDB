@@ -21,7 +21,6 @@ public abstract class DAOBD<T> {
     private Connection connection = null;
     private Controlador_Pool pool = new Controlador_Pool();
 
-
     public DAOBD() {
         pool.iniciarPool();
     }
@@ -33,7 +32,7 @@ public abstract class DAOBD<T> {
         this.setPassword(password);
         this.setNameDB(nameBD);
     }
-    
+
     /**
      * Crea una nueva conexión con la base de datos. Los datos los toma del
      * archivo de configuración, éstos deberán ser correctos, ya que si hay
@@ -43,13 +42,10 @@ public abstract class DAOBD<T> {
     public void establishConnection() {
 
         if (this.connection == null) {
-            
+
             DatosBD unaConexion = pool.pedirConexion();
-            System.out.println("Información que acaba de setear: "+unaConexion);
+//            System.out.println("Información que acaba de setear: " + unaConexion);
             String puerto = String.valueOf(unaConexion.getPuerto());
-            System.out.println("la bandera es: "+bandera);
-            //System.out.println("Contraseña: "+unaConexion.getPassword());
-            //Falta que se arregle lo de la contraseña.
             initData(unaConexion.getIp(), puerto,
                     unaConexion.getUsuario(), unaConexion.getPassword(),
                     unaConexion.getNombreBD());
@@ -58,17 +54,13 @@ public abstract class DAOBD<T> {
         try {
             //Aquí establece la conexión:
             MysqlDataSource source = new MysqlDataSource();
-            
             String url = "jdbc:mysql://" + this.getHost()
                     + ":" + this.getPort() + "/"
                     + this.getNameDB();
-            
             source.setURL(url);
             source.setUser(this.user);
             source.setPassword(this.password);
-            
             this.setConnection(source.getConnection());
-            //this.setConnection(DriverManager.getConnection(url, this.getUser(), this.getPassword()));
         } catch (SQLException ex) {// handle the error          
             System.out.println("SQLException: " + ex.getMessage());
             ex.printStackTrace();
@@ -88,8 +80,9 @@ public abstract class DAOBD<T> {
         //System.out.println("coneccion" + connection);
         return connection;
     }
-boolean bandera = false;
-    public void closeConnection(Connection connection) {
+    boolean bandera = false;
+
+    public void closeConnection() {
         if (connection != null) {
             try {
                 if (!connection.isClosed()) { // Si no esta cerrada, se cierra;
@@ -110,8 +103,6 @@ boolean bandera = false;
      * @param elemento
      * @throws SQLException
      */
-    
-    
     public void addElement(T elemento) throws SQLException {
         try {
             this.establishConnection();
@@ -122,17 +113,11 @@ boolean bandera = false;
                     + (elemento.getClass().getSimpleName()).toLowerCase()
                     + " VALUES (" + elemento.toString() + ")";
             System.out.println(query);
-            //System.exit(0);
 
             statement.executeUpdate(query);
-            /*
-             JOptionPane.showMessageDialog(null, "Se ha registrado Exitosamente",
-             "Información",
-             JOptionPane.INFORMATION_MESSAGE);
-             */
             statement.close();
             statement = null;
-            this.closeConnection(getConnection());
+            this.closeConnection();
         } catch (SQLException e) {
             System.out.println(e.getMessage());
             e.printStackTrace();
@@ -156,8 +141,8 @@ boolean bandera = false;
                     + " WHERE " + claveElemento);
             statement.close();
             statement = null;
-            this.closeConnection(getConnection());
-            
+            this.closeConnection();
+
         } catch (SQLException ex) {
             System.out.println("Error en borrar" + ex);
         }
@@ -185,7 +170,7 @@ boolean bandera = false;
             resultadoDeConsulta.close();
             consulta.close();
             consulta = null;
-            this.closeConnection(getConnection());
+            this.closeConnection();
         } catch (Exception e) {
 
             JOptionPane.showMessageDialog(null,
@@ -286,8 +271,5 @@ boolean bandera = false;
     public void setConnection(Connection connection) {
         this.connection = connection;
     }
- 
-    
-    
 
 }
